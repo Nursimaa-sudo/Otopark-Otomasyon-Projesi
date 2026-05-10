@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParkMatik | Nursima Kuruağaç</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .admin-section, .logged-in-only { display: none; }
+        .visitor-section { display: block; }
+        .card { border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 12px; }
+        .navbar { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        #userStatus { font-weight: 600; font-size: 1.1rem; }
+        .badge-area { font-size: 0.9rem; padding: 6px 12px; }
+        .fee-text { color: #d63031; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="#">🚗 <b>ParkMatik</b> Otomasyonu</a>
+        <div class="d-flex align-items-center">
+            <span id="userStatus" class="navbar-text text-white me-3"></span>
+            <button id="logoutBtn" onclick="logout()" class="btn btn-outline-light btn-sm logged-in-only">Güvenli Çıkış</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container">
+    
+    <div id="loginForm" class="row justify-content-center visitor-section">
+        <div class="col-md-5 mb-4">
+            <div class="card p-4">
+                <h4 class="text-center mb-4">Yönetici Girişi</h4>
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı Adı</label>
+                    <input type="text" id="username" class="form-control" placeholder="Kullanıcı adınızı girin">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Şifre</label>
+                    <input type="password" id="password" class="form-control" placeholder="Şifrenizi girin">
+                </div>
+                <button onclick="login()" class="btn btn-primary w-100 py-2">Giriş Yap</button>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card p-4 text-center">
+                <h5>Otopark Doluluk Durumu</h5>
+                <hr>
+                <div class="py-3">
+                    <h2 id="occupancyText" class="text-primary">0 / 10</h2>
+                    <p class="text-muted">Şu an içerideki araç sayısı</p>
+                </div>
+                <div class="alert alert-info small">
+                    Admin paneline erişmek için lütfen giriş yapın.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminPanel" class="admin-section">
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card p-4">
+                    <h5 id="formTitle" class="mb-3 text-primary">Yeni Araç Girişi</h5>
+                    <hr>
+                    <input type="hidden" id="editVehicleId">
+                    <div class="mb-3">
+                        <label class="form-label">Araç Plakası</label>
+                        <input type="text" id="plateInput" class="form-control" placeholder="Örn: 34 NUR 34">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Park Alanı Seçin</label>
+                        <select id="areaInput" class="form-select">
+                            <option value="A-1">A-1 Bölgesi</option>
+                            <option value="A-2">A-2 Bölgesi</option>
+                            <option value="B-1">B-1 Bölgesi</option>
+                            <option value="B-2">B-2 Bölgesi</option>
+                            <option value="C-1">C-1 Bölgesi</option>
+                        </select>
+                    </div>
+                    <div class="form-check form-switch mb-4">
+                        <input class="form-check-input" type="checkbox" id="subscriberInput">
+                        <label class="form-check-label">Abone Müşteri (%30 İndirim)</label>
+                    </div>
+                    
+                    <div id="btnGroup">
+                        <button id="addBtn" onclick="addVehicle()" class="btn btn-success w-100 mb-2">Kaydı Tamamla</button>
+                        <button id="updateBtn" onclick="updateVehicle()" class="btn btn-warning w-100 mb-2 d-none">Değişiklikleri Kaydet</button>
+                        <button id="cancelBtn" onclick="cancelEdit()" class="btn btn-secondary w-100 d-none">İptal Et</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card p-4">
+                    <h5 class="mb-3">İçerideki Araçlar ve Güncel Borç</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Plaka</th>
+                                    <th>Alan</th>
+                                    <th>Giriş Zamanı</th>
+                                    <th>Güncel Ücret</th>
+                                    <th>İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vehicleTable">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // AYARLAR
+    const ADMIN_USER = "Nursima";
+    const ADMIN_PASS = "nur3465";
+    const HOURLY_RATE = 20; // Saatlik 20 TL
+    const TOTAL_CAPACITY = 10;
+
+    let vehicles = JSON.parse(localStorage.getItem('parkmatik_data')) || [];
+
+    // Başlangıç Kontrolü
+    updateVisitorStats();
+
+    function login() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+
+        if (u === ADMIN_USER && p === ADMIN_PASS) {
+            document.querySelectorAll('.visitor-section').forEach(el => el.style.display = 'none');
+            document.getElementById('adminPanel').style.display = 'block';
+            document.querySelectorAll('.logged-in-only').forEach(el => el.style.display = 'block');
+            document.getElementById('userStatus').innerText = "Merhaba, " + ADMIN_USER;
+            renderTable();
+        } else {
+            alert("Giriş Başarısız! Kullanıcı adı veya şifre yanlış.");
+        }
+    }
+
+    function logout() {
+        if(confirm("Oturumu kapatmak istiyor musunuz?")) location.reload();
+    }
+
+    function updateVisitorStats() {
+        document.getElementById('occupancyText').innerText = `${vehicles.length} / ${TOTAL_CAPACITY}`;
+    }
+
+    // CREATE - ARAÇ EKLEME
+    function addVehicle() {
+        const plate = document.getElementById('plateInput').value.trim().toUpperCase();
+        const area = document.getElementById('areaInput').value;
+        const isSub = document.getElementById('subscriberInput').checked;
+
+        if (!plate) return alert("Hata: Lütfen geçerli bir plaka giriniz.");
+        
+        // Doluluk Kontrolü
+        if (vehicles.some(v => v.area === area)) {
+            return alert("Hata: " + area + " alanı şu an dolu! Lütfen başka bir yer seçin.");
+        }
+
+        const newVehicle = {
+            id: Date.now(),
+            plate: plate,
+            area: area,
+            isSub: isSub,
+            entryTime: new Date().toISOString()
+        };
+
+        vehicles.push(newVehicle);
+        saveAndRefresh();
+        clearForm();
+        alert("Araç Girişi Başarılı!");
+    }
+
+    // READ - LİSTELEME
+    function renderTable() {
+        const table = document.getElementById('vehicleTable');
+        table.innerHTML = "";
+
+        if(vehicles.length === 0) {
+            table.innerHTML = "<tr><td colspan='5' class='text-center text-muted'>İçeride araç bulunmuyor.</td></tr>";
+            return;
+        }
+
+        vehicles.forEach(v => {
+            const fee = calculateCurrentFee(v.entryTime, v.isSub);
+            const date = new Date(v.entryTime).toLocaleString();
+
+            table.innerHTML += `
+                <tr>
+                    <td><strong>${v.plate}</strong> <br> <small class="text-muted">${v.isSub ? 'Abone' : 'Standart'}</small></td>
+                    <td><span class="badge bg-info badge-area">${v.area}</span></td>
+                    <td><small>${date}</small></td>
+                    <td><span class="fee-text">${fee} TL</span></td>
+                    <td>
+                        <button onclick="editMode(${v.id})" class="btn btn-outline-warning btn-sm">Düzenle</button>
+                        <button onclick="exitVehicle(${v.id})" class="btn btn-danger btn-sm">Çıkış</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    // UPDATE - DÜZENLEME MODU
+    function editMode(id) {
+        const v = vehicles.find(item => item.id === id);
+        document.getElementById('editVehicleId').value = v.id;
+        document.getElementById('plateInput').value = v.plate;
+        document.getElementById('areaInput').value = v.area;
+        document.getElementById('subscriberInput').checked = v.isSub;
+
+        document.getElementById('formTitle').innerText = "Araç Bilgisi Güncelle";
+        document.getElementById('addBtn').classList.add('d-none');
+        document.getElementById('updateBtn').classList.remove('d-none');
+        document.getElementById('cancelBtn').classList.remove('d-none');
+    }
+
+    function updateVehicle() {
+        const id = parseInt(document.getElementById('editVehicleId').value);
+        const index = vehicles.findIndex(v => v.id === id);
+        
+        const newArea = document.getElementById('areaInput').value;
+
+        // Alan değişikliği varsa doluluk kontrolü
+        if (vehicles[index].area !== newArea && vehicles.some(v => v.area === newArea)) {
+            return alert("Hata: Seçilen yeni alan zaten dolu!");
+        }
+
+        vehicles[index].plate = document.getElementById('plateInput').value.toUpperCase();
+        vehicles[index].area = newArea;
+        vehicles[index].isSub = document.getElementById('subscriberInput').checked;
+
+        saveAndRefresh();
+        cancelEdit();
+        alert("Güncelleme yapıldı.");
+    }
+
+    function cancelEdit() {
+        clearForm();
+        document.getElementById('formTitle').innerText = "Yeni Araç Girişi";
+        document.getElementById('addBtn').classList.remove('d-none');
+        document.getElementById('updateBtn').classList.add('d-none');
+        document.getElementById('cancelBtn').classList.add('d-none');
+    }
+
+    // DELETE - ÇIKIŞ YAP VE ÜCRET GÖSTER
+    function exitVehicle(id) {
+        const v = vehicles.find(item => item.id === id);
+        const fee = calculateCurrentFee(v.entryTime, v.isSub);
+
+        const confirmText = `
+            ARAÇ ÇIKIŞI ONAYI
+            -----------------------
+            Plaka: ${v.plate}
+            Park Alanı: ${v.area}
+            Hesaplanan Ücret: ${fee} TL
+
+            Ödeme alındı mı?
+        `;
+
+        if (confirm(confirmText)) {
+            vehicles = vehicles.filter(item => item.id !== id);
+            saveAndRefresh();
+            alert("Çıkış yapıldı. İyi yolculuklar!");
+        }
+    }
+
+    // YARDIMCI FONKSİYONLAR
+    function calculateCurrentFee(entryDate, isSub) {
+        const start = new Date(entryDate);
+        const end = new Date();
+        const diffMs = end - start;
+        const diffHours = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60))); // Min 1 saat
+        
+        let total = diffHours * HOURLY_RATE;
+        if(isSub) total *= 0.7; // %30 indirim
+        return total.toFixed(2);
+    }
+
+    function saveAndRefresh() {
+        localStorage.setItem('parkmatik_data', JSON.stringify(vehicles));
+        renderTable();
+        updateVisitorStats();
+    }
+
+    function clearForm() {
+        document.getElementById('plateInput').value = "";
+        document.getElementById('subscriberInput').checked = false;
+        document.getElementById('editVehicleId').value = "";
+    }
+</script>
+
+</body>
+</html>
